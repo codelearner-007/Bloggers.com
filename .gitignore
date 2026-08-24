@@ -11,3 +11,7 @@ out/
 dist/
 build/
 .DS_Store
+.idea/
+.vscode/
+.pytest_cache/
+*.log
