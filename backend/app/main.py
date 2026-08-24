@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import app.models  # noqa: F401 -- registers every mapped class before any router resolves a relationship()
 from app.core.config import settings
 from app.routers import admin, blogs, contact, likes, media
 

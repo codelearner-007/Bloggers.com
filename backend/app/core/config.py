@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Loaded from api/.env. See api/.env.example for what each value means."""
+    """Loaded from backend/.env. See backend/.env.example for what each value means."""
 
     # Supabase Postgres, via the Session Pooler (port 5432) connection string.
     # SQLAlchemy needs real prepared-statement support, which the Transaction
