@@ -15,3 +15,5 @@ build/
 .vscode/
 .pytest_cache/
 *.log
+web/CLAUDE.md
+web/AGENTS.md
