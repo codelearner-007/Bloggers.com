@@ -40,21 +40,27 @@ function PaginationLink({
   className,
   isActive,
   size = "icon",
+  // Pass e.g. `render={<Link href="/blogs?page=2" />}` to render next/link
+  // instead of a plain <a> -- Base UI's `render` prop merges its own
+  // behavior onto whatever element you hand it, per its composition
+  // contract, so next/link's own prop-forwarding to its underlying <a>
+  // is all that's required for prefetch and client navigation to work.
+  render,
   ...props
 }) {
+  const target = render ?? <a />
   return (
     <Button
       variant={isActive ? "outline" : "ghost"}
       size={size}
       className={cn(className)}
       nativeButton={false}
-      render={
-        <a
-          aria-current={isActive ? "page" : undefined}
-          data-slot="pagination-link"
-          data-active={isActive}
-          {...props} />
-      } />
+      render={React.cloneElement(target, {
+        "aria-current": isActive ? "page" : undefined,
+        "data-slot": "pagination-link",
+        "data-active": isActive,
+        ...props,
+      })} />
   );
 }
 
