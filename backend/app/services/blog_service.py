@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import settings
 from app.dependencies.auth import load_owned_blog
 from app.models.attachment import Attachment, BlogAttachment
 from app.models.blog import Blog, BlogStatus
@@ -16,7 +17,6 @@ from app.utils.html_sanitizer import sanitize_blog_html
 from app.utils.slug import generate_unique_slug
 from app.utils.supabase_admin import get_supabase_admin
 
-BUCKET = "blog-media"
 WORDS_PER_MINUTE = 200
 
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -149,7 +149,7 @@ def delete_blog(db: Session, profile: Profile, blog: Blog) -> None:
         # the blog_attachments join is the only record of what to delete,
         # and it cascades away with the blog.
         for start in range(0, len(object_paths), 1000):
-            supabase.storage.from_(BUCKET).remove(object_paths[start:start + 1000])
+            supabase.storage.from_(settings.storage_bucket).remove(object_paths[start:start + 1000])
 
     db.delete(blog)
     db.commit()

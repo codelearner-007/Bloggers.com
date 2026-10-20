@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.dependencies.auth import get_current_profile
 from app.models.attachment import Attachment, AttachmentKind, AttachmentStatus
@@ -13,7 +14,6 @@ from app.utils.supabase_admin import get_supabase_admin
 
 router = APIRouter(prefix="/api/v1/media", tags=["media"])
 
-BUCKET = "blog-media"
 MAX_BYTES = 5 * 1024 * 1024
 EXTENSION_BY_MIME = {
     "image/jpeg": "jpg",
@@ -43,15 +43,12 @@ def create_upload_url(
 
     # Cheap abuse guard: without this, any Google account can fill the whole
     # free-tier storage quota.
-    pending_count = db.scalar(
-        select(func.count()).select_from(Attachment).where(
-            Attachment.owner_id == profile.id,
-            Attachment.status == AttachmentStatus.PENDING,
-        )
-    )
-    total_count = db.scalar(
-        select(func.count()).select_from(Attachment).where(Attachment.owner_id == profile.id)
-    )
+    pending_count, total_count = db.execute(
+        select(
+            func.count().filter(Attachment.status == AttachmentStatus.PENDING),
+            func.count(),
+        ).select_from(Attachment).where(Attachment.owner_id == profile.id)
+    ).one()
     if pending_count >= MAX_PENDING_PER_USER or total_count >= MAX_ATTACHMENTS_PER_USER:
         raise HTTPException(429, "Upload quota reached")
 
@@ -60,13 +57,14 @@ def create_upload_url(
     # client-supplied path could target someone else's folder.
     object_path = f"{profile.id}/{uuid4().hex}.{extension}"
 
+    bucket = settings.storage_bucket
     supabase = get_supabase_admin()
-    signed = supabase.storage.from_(BUCKET).create_signed_upload_url(object_path)
-    public_url = supabase.storage.from_(BUCKET).get_public_url(object_path)
+    signed = supabase.storage.from_(bucket).create_signed_upload_url(object_path)
+    public_url = supabase.storage.from_(bucket).get_public_url(object_path)
 
     attachment = Attachment(
         owner_id=profile.id,
-        bucket=BUCKET,
+        bucket=bucket,
         object_path=object_path,
         public_url=public_url,
         mime_type=payload.mime_type,
@@ -97,9 +95,10 @@ def commit_upload(
     if attachment is None or attachment.owner_id != profile.id:
         raise HTTPException(404, "Attachment not found")
 
+    bucket = settings.storage_bucket
     supabase = get_supabase_admin()
     folder, file_name = attachment.object_path.rsplit("/", 1)
-    listing = supabase.storage.from_(BUCKET).list(folder)
+    listing = supabase.storage.from_(bucket).list(folder)
     matched = next((item for item in listing if item.get("name") == file_name), None)
     if matched is None:
         raise HTTPException(409, "Object was never uploaded")
@@ -107,7 +106,7 @@ def commit_upload(
     real_size = (matched.get("metadata") or {}).get("size")
     if real_size is not None:
         if real_size > MAX_BYTES:
-            supabase.storage.from_(BUCKET).remove([attachment.object_path])
+            supabase.storage.from_(bucket).remove([attachment.object_path])
             db.delete(attachment)
             db.commit()
             raise HTTPException(422, "Uploaded file exceeds the size limit")
